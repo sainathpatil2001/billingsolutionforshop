@@ -163,6 +163,30 @@ def view_bills():
             sqliteConnection.close()
             print('SQLite Connection closed.')
 
+def get_next_bill_id():
+    """Retrieve the next available bill ID for user input."""
+    try:
+        sqliteConnection = sqlite3.connect('billing_solution_database.db')
+        cursor = sqliteConnection.cursor()
+
+        # Query to get the maximum bill_id from the Bills table
+        cursor.execute('SELECT MAX(bill_id) FROM Bills')
+        max_id = cursor.fetchone()[0]
+
+        # If there are no bills, the next ID will be 1
+        next_id = 1 if max_id is None else max_id + 1
+        return next_id
+
+    except sqlite3.Error as error:
+        print('Error while fetching next bill ID - ', error)
+        return None
+
+    finally:
+        if sqliteConnection:
+            sqliteConnection.close()
+            print('SQLite Connection closed.')
+
+
 
 # Example Usage
 initialize_database()

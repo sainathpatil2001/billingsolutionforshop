@@ -59,6 +59,7 @@ class MainApp(ctk.CTk):
         for widget in self.fragment_frame.winfo_children():
             widget.destroy()
 
+
 if __name__ == "__main__":
     initialize_database()  # Ensure the database is initialized at startup
     app = MainApp()
