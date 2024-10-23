@@ -2,6 +2,7 @@ import customtkinter as ctk
 import tkinter as tk
 import datetime
 import tkinter.messagebox as msgbox
+import database_management
 
 class BillingFragment(ctk.CTkFrame):
     def __init__(self, parent):
@@ -23,6 +24,10 @@ class BillingFragment(ctk.CTkFrame):
         self.fixed_button_frame = ctk.CTkFrame(self)
         self.fixed_button_frame.pack(side="bottom", fill="x")
 
+        # Add total price label to fixed button frame
+        self.label_total_price = ctk.CTkLabel(self.fixed_button_frame, text="Total Price: ₹0.00", font=("Arial", 20, "bold"))
+        self.label_total_price.pack(side="right", padx=5, pady=10)  # Position it to the right side
+
         self.clear_all_button = ctk.CTkButton(self.fixed_button_frame, text="Clear All", width=120, height=40, command=self.reset_fields)
         self.clear_all_button.pack(side="left", padx=5, pady=10)
 
@@ -40,15 +45,19 @@ class BillingFragment(ctk.CTkFrame):
         self.scrollable_frame.grid_columnconfigure(3, weight=1)
         self.scrollable_frame.grid_columnconfigure(4, weight=1)  # For Clear button
 
+        # Bill No. Label
+        self.label_bill_no = ctk.CTkLabel(self.scrollable_frame, text="Bill No.: Demo No.", font=("Arial", 16, "bold"))
+        self.label_bill_no.grid(row=0, column=0, columnspan=4, padx=5, pady=5, sticky="w")
+
         # Customer details section with larger input boxes
-        self.create_label_entry("Customer Name:", 0)
-        self.entry_customer_name = self.create_entry(0, 1)
+        self.create_label_entry("Customer Name:", 1)
+        self.entry_customer_name = self.create_entry(1, 1)
 
-        self.create_label_entry("Customer City:", 1)
-        self.entry_city = self.create_entry(1, 1)
+        self.create_label_entry("Customer City:", 2)
+        self.entry_city = self.create_entry(2, 1)
 
-        self.create_label_entry("Mobile No.:", 2)
-        self.entry_mobile = self.create_entry(2, 1)
+        self.create_label_entry("Mobile No.:", 3)
+        self.entry_mobile = self.create_entry(3, 1)
 
         # Labels for product table
         ctk.CTkLabel(self.scrollable_frame, text="Product Name", font=("Arial", 16, "bold")).grid(row=4, column=0, padx=5, pady=(5, 0), sticky="w")
@@ -70,10 +79,6 @@ class BillingFragment(ctk.CTkFrame):
             # Bind quantity and price entry updates to update total
             quantity_entry.bind("<KeyRelease>", self.update_total)
             price_entry.bind("<KeyRelease>", self.update_total)
-
-        # Total Price label at the bottom
-        self.label_total_price = ctk.CTkLabel(self.scrollable_frame, text="Total Price: ₹0.00", font=("Arial", 20, "bold"))
-        self.label_total_price.grid(row=45, column=0, columnspan=4, padx=5, pady=10, sticky="w")
 
         # Current date and time display at the top right corner
         self.label_datetime = ctk.CTkLabel(self.scrollable_frame, text="", font=("Arial", 16, "bold"))
@@ -114,51 +119,89 @@ class BillingFragment(ctk.CTkFrame):
 
     def reset_fields(self):
         """Clear all input fields."""
-        for entry_tuple in self.entries:
-            for entry in entry_tuple:
-                entry.delete(0, tk.END)
-        self.label_total_price.configure(text="Total Price: ₹0.00")
+        for product_name_entry, quantity_entry, price_entry, total_label in self.entries:
+            product_name_entry.delete(0, tk.END)  # Clear Product Name
+            quantity_entry.delete(0, tk.END)  # Clear Quantity
+            price_entry.delete(0, tk.END)  # Clear Price
+            total_label.configure(text="₹0.00")  # Reset total price label
+        self.label_total_price.configure(text="Total Price: ₹0.00")  # Reset overall total price
 
     def handle_save_bill(self):
         """Handle the save bill functionality."""
-        response = msgbox.askyesno("Save Bill", "Have you added more products? Do you want to save the bill?")
-        if response:
-            # Save the bill logic goes here
-            pass
+        # Gather customer details
+        customer_name = self.entry_customer_name.get()
+        customer_city = self.entry_city.get()
+        customer_mobile = self.entry_mobile.get()
 
-    def handle_print_bill(self):
-        """Handle the print bill functionality."""
-        response = msgbox.askyesno("Print Bill", "Are you sure you want to print the bill?")
-        if response:
-            # Print the bill logic goes here
-            pass
+        # Set the special customer flag to 0 (not a special customer)
+        is_special_customer = 0
 
-    def update_total(self, event):
-        """Update total price for the specific product row and overall total price."""
-        total_price = 0.0  # Overall total price
-        for index, (product_name_entry, quantity_entry, price_entry, total_label) in enumerate(self.entries):
+        # Gather product details
+        items = []
+        for product_name_entry, quantity_entry, price_entry, total_label in self.entries:
+            product_name = product_name_entry.get()
             try:
-                quantity = int(quantity_entry.get()) if quantity_entry.get() else 0
-                price = float(price_entry.get()) if price_entry.get() else 0.0
-                total = quantity * price
-                total_label.configure(text=f"₹{total:.2f}")  # Update total price label
-                total_price += total  # Add to overall total price
+                quantity = int(quantity_entry.get())
+                price_per_item = float(price_entry.get())
+                total_price = quantity * price_per_item
             except ValueError:
-                total_label.configure(text="₹0.00")  # Reset if invalid input
+                quantity = 0
+                price_per_item = 0.0
+                total_price = 0.0
 
-        # Update overall total price label
+            if product_name:  # Add only if the product name is not empty
+                items.append({
+                    'product_name': product_name,
+                    'quantity': quantity,
+                    'price_per_item': price_per_item,
+                    'total_price': total_price,
+                })
+
+        # Calculate total bill price
+        total_bill_price = sum(item['total_price'] for item in items)
+
+        # Save bill to database
+        if items:
+            bill_id = database_management.add_bill(customer_name, customer_city, customer_mobile, total_bill_price,
+                                                   items)
+            msgbox.showinfo("Success", f"Bill saved successfully with Bill ID: {bill_id}")
+            self.reset_fields()  # Reset fields after saving
+        else:
+            msgbox.showwarning("No Items", "No items to save.")
+
+    def update_total(self, event=None):
+        """Update total price for each product row and overall total."""
+        for product_name_entry, quantity_entry, price_entry, total_label in self.entries:
+            try:
+                quantity = int(quantity_entry.get())
+                price_per_item = float(price_entry.get())
+                total_price = quantity * price_per_item
+            except ValueError:
+                total_price = 0.0  # Default to 0 if input is invalid
+
+            total_label.configure(text=f"₹{total_price:.2f}")  # Update total price label
+
+        self.calculate_total()  # Calculate overall total price
+
+    def calculate_total(self):
+        """Calculate the overall total price."""
+        total_price = sum(float(total_label.cget("text")[1:]) for _, _, _, total_label in self.entries)
         self.label_total_price.configure(text=f"Total Price: ₹{total_price:.2f}")
 
-    def scroll_up(self, event):
-        """Scroll the frame up using the Up arrow key."""
+    def scroll_up(self, event=None):
+        """Scroll up in the frame."""
         self.scrollable_frame.yview_scroll(-1, "units")
 
-    def scroll_down(self, event):
-        """Scroll the frame down using the Down arrow key."""
+    def scroll_down(self, event=None):
+        """Scroll down in the frame."""
         self.scrollable_frame.yview_scroll(1, "units")
 
     def update_time(self):
-        """Update the current date and time label."""
+        """Update the date and time display."""
         now = datetime.datetime.now()
         self.label_datetime.configure(text=now.strftime("%Y-%m-%d %H:%M:%S"))
         self.after(1000, self.update_time)  # Update every second
+
+    def handle_print_bill(self):
+        """Placeholder for print bill functionality."""
+        msgbox.showinfo("Print Bill", "Print functionality is not implemented yet.")

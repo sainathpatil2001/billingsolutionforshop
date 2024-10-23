@@ -1,30 +1,39 @@
 import sqlite3
 
-
-# Database Initialization
 def initialize_database():
+    """Initialize the SQLite database and create the Bills and Bill Items tables."""
     try:
-        # Connect to the SQLite database (it will create one if it doesn't exist)
         sqliteConnection = sqlite3.connect('billing_solution_database.db')
         cursor = sqliteConnection.cursor()
         print('Database initialized.')
 
-        # Create a table for billing records if it doesn't exist
+        # Create the Bills table
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS billing_records (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_name TEXT NOT NULL,
-                quantity INTEGER NOT NULL,
-                price REAL NOT NULL,
-                total REAL NOT NULL,
-                customer_name TEXT,
-                customer_city TEXT,
-                customer_mobile TEXT,
-                date_time TEXT NOT NULL
+            CREATE TABLE IF NOT EXISTS Bills (
+                bill_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_name TEXT NOT NULL,
+                customer_city TEXT NOT NULL,
+                customer_mobile TEXT NOT NULL,
+                bill_date TEXT DEFAULT (DATETIME('now', 'localtime')),
+                total_price REAL NOT NULL
             )
         ''')
+
+        # Create the Bill Items table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Bill_Items (
+                item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bill_id INTEGER,
+                product_name TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                price_per_item REAL NOT NULL,
+                total_price REAL NOT NULL,
+                FOREIGN KEY (bill_id) REFERENCES Bills (bill_id) ON DELETE CASCADE
+            )
+        ''')
+
         sqliteConnection.commit()
-        print('Billing records table created.')
+        print('Tables created successfully.')
 
     except sqlite3.Error as error:
         print('Error occurred while initializing database - ', error)
@@ -35,23 +44,33 @@ def initialize_database():
             print('SQLite Connection closed.')
 
 
-# Function to add a bill to the database
-def add_bill(product_name, quantity, price, total, customer_name, customer_city, customer_mobile, date_time):
+def add_bill(customer_name, customer_city, customer_mobile, total_price, items):
+    """Add a new bill to the database, including associated items."""
     try:
         sqliteConnection = sqlite3.connect('billing_solution_database.db')
         cursor = sqliteConnection.cursor()
 
-        # Insert a new billing record
+        # Insert into Bills table
         cursor.execute('''
-            INSERT INTO billing_records (product_name, quantity, price, total, customer_name, customer_city, customer_mobile, date_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (product_name, quantity, price, total, customer_name, customer_city, customer_mobile, date_time))
+            INSERT INTO Bills (customer_name, customer_city, customer_mobile, total_price)
+            VALUES (?, ?, ?, ?)
+        ''', (customer_name, customer_city, customer_mobile, total_price))
+
+        # Get the last inserted bill ID
+        bill_id = cursor.lastrowid
+
+        # Insert associated items into Bill_Items table
+        for item in items:
+            cursor.execute('''
+                INSERT INTO Bill_Items (bill_id, product_name, quantity, price_per_item, total_price)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (bill_id, item['product_name'], item['quantity'], item['price_per_item'], item['total_price']))
 
         sqliteConnection.commit()
-        print('Bill added successfully.')
+        print('Bill and items added successfully.')
 
     except sqlite3.Error as error:
-        print('Error occurred while adding bill - ', error)
+        print('Error while adding bill - ', error)
 
     finally:
         if sqliteConnection:
@@ -59,50 +78,34 @@ def add_bill(product_name, quantity, price, total, customer_name, customer_city,
             print('SQLite Connection closed.')
 
 
-# Function to search for a bill by customer name
-def search_bills(customer_name):
+def update_bill(bill_id, customer_name, customer_city, customer_mobile, total_price, items):
+    """Update an existing bill and its items in the database."""
     try:
         sqliteConnection = sqlite3.connect('billing_solution_database.db')
         cursor = sqliteConnection.cursor()
 
-        # Fetch billing records by customer name
-        cursor.execute('SELECT * FROM billing_records WHERE customer_name = ?', (customer_name,))
-        records = cursor.fetchall()
-
-        if records:
-            for record in records:
-                print(record)
-        else:
-            print('No records found for the customer:', customer_name)
-
-    except sqlite3.Error as error:
-        print('Error occurred while searching bills - ', error)
-
-    finally:
-        if sqliteConnection:
-            sqliteConnection.close()
-            print('SQLite Connection closed.')
-
-
-# Function to update a bill by id
-def update_bill(bill_id, product_name, quantity, price, total, customer_name, customer_city, customer_mobile,
-                date_time):
-    try:
-        sqliteConnection = sqlite3.connect('billing_solution_database.db')
-        cursor = sqliteConnection.cursor()
-
-        # Update the billing record
+        # Update the Bills table
         cursor.execute('''
-            UPDATE billing_records
-            SET product_name = ?, quantity = ?, price = ?, total = ?, customer_name = ?, customer_city = ?, customer_mobile = ?, date_time = ?
-            WHERE id = ?
-        ''', (product_name, quantity, price, total, customer_name, customer_city, customer_mobile, date_time, bill_id))
+            UPDATE Bills
+            SET customer_name = ?, customer_city = ?, customer_mobile = ?, total_price = ?
+            WHERE bill_id = ?
+        ''', (customer_name, customer_city, customer_mobile, total_price, bill_id))
+
+        # Delete old items
+        cursor.execute('DELETE FROM Bill_Items WHERE bill_id = ?', (bill_id,))
+
+        # Insert new items
+        for item in items:
+            cursor.execute('''
+                INSERT INTO Bill_Items (bill_id, product_name, quantity, price_per_item, total_price)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (bill_id, item['product_name'], item['quantity'], item['price_per_item'], item['total_price']))
 
         sqliteConnection.commit()
         print('Bill updated successfully.')
 
     except sqlite3.Error as error:
-        print('Error occurred while updating bill - ', error)
+        print('Error while updating bill - ', error)
 
     finally:
         if sqliteConnection:
@@ -110,24 +113,19 @@ def update_bill(bill_id, product_name, quantity, price, total, customer_name, cu
             print('SQLite Connection closed.')
 
 
-# Function to retrieve all billing records
-def get_all_bills():
+def delete_bill(bill_id):
+    """Delete a bill from the database, along with its items."""
     try:
         sqliteConnection = sqlite3.connect('billing_solution_database.db')
         cursor = sqliteConnection.cursor()
 
-        # Fetch all billing records
-        cursor.execute('SELECT * FROM billing_records')
-        records = cursor.fetchall()
+        cursor.execute('DELETE FROM Bills WHERE bill_id = ?', (bill_id,))
+        sqliteConnection.commit()
 
-        if records:
-            for record in records:
-                print(record)
-        else:
-            print('No records found.')
+        print('Bill deleted successfully.')
 
     except sqlite3.Error as error:
-        print('Error occurred while retrieving bills - ', error)
+        print('Error while deleting bill - ', error)
 
     finally:
         if sqliteConnection:
@@ -135,14 +133,36 @@ def get_all_bills():
             print('SQLite Connection closed.')
 
 
-# Example usage (You can remove this part later)
-if __name__ == '__main__':
-    initialize_database()  # Initialize the database
-    # Add a bill (example)
-    add_bill('Product A', 2, 100.0, 200.0, 'John Doe', 'City A', '1234567890', '2024-10-20 10:30:00')
-    # Search for bills
-    search_bills('John Doe')
-    # Update a bill (example, use the actual id of the bill you want to update)
-    # update_bill(1, 'Product A', 3, 100.0, 300.0, 'John Doe', 'City A', '1234567890', '2024-10-20 10:30:00')
-    # Get all bills
-    get_all_bills()
+def view_bills():
+    """Retrieve and display all bills and their items."""
+    try:
+        sqliteConnection = sqlite3.connect('billing_solution_database.db')
+        cursor = sqliteConnection.cursor()
+
+        cursor.execute('SELECT * FROM Bills')
+        bills = cursor.fetchall()
+
+        for bill in bills:
+            bill_id = bill[0]
+            print(f'Bill ID: {bill_id}, Customer Name: {bill[1]}, City: {bill[2]}, Mobile: {bill[3]}, Date: {bill[4]}, Total Price: {bill[5]}')
+
+            # Fetch items associated with this bill
+            cursor.execute('SELECT * FROM Bill_Items WHERE bill_id = ?', (bill_id,))
+            items = cursor.fetchall()
+
+            for item in items:
+                print(f'    Item: {item[2]}, Quantity: {item[3]}, Price per Item: {item[4]}, Total Price: {item[5]}')
+
+        sqliteConnection.commit()
+
+    except sqlite3.Error as error:
+        print('Error while viewing bills - ', error)
+
+    finally:
+        if sqliteConnection:
+            sqliteConnection.close()
+            print('SQLite Connection closed.')
+
+
+# Example Usage
+initialize_database()
