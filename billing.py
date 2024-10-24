@@ -10,7 +10,9 @@ import database_management
 class BillingFragment(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent)
-
+        global bill_id
+        bill_id = 00
+        bill_id = database_management.get_next_bill_id()
         # Set up frame and widgets as before
         self.scrollable_frame = ctk.CTkScrollableFrame(self)
         self.scrollable_frame.pack(fill="both", expand=True)
@@ -53,7 +55,7 @@ class BillingFragment(ctk.CTkFrame):
 
         # Bill No. Label
         self.label_bill_no = ctk.CTkLabel(self.scrollable_frame,
-                                          text=f"Bill No.: {database_management.get_next_bill_id()}",
+                                          text=f"Bill No.: {bill_id}",
                                           font=("Arial", 16, "bold"))
         self.label_bill_no.grid(row=0, column=0, columnspan=4, padx=5, pady=5, sticky="w")
 
@@ -108,6 +110,7 @@ class BillingFragment(ctk.CTkFrame):
         items = []
         total_bill_price = 0.0
 
+        # Process each product entry
         for product_name_entry, quantity_entry, price_entry, total_label in self.entries:
             product_name = product_name_entry.get()
             quantity = quantity_entry.get()
@@ -128,17 +131,25 @@ class BillingFragment(ctk.CTkFrame):
 
                 total_label.configure(text=f"₹{total_price:.2f}")
 
-        # Validate fields
+        # Validate customer details
         if not customer_name or not customer_city or not customer_mobile:
             msgbox.showwarning("Input Error", "Please fill in all customer details.")
             return
 
-        # Save bill to database
-        bill_id = database_management.add_bill(customer_name, customer_city, customer_mobile, total_bill_price, items)
+        # Save bill to the database
+        if database_management.add_bill(customer_name, customer_city, customer_mobile, total_bill_price, items):
+            msgbox.showinfo("Success", f"Bill saved successfully.")
 
-        if bill_id:
-            msgbox.showinfo("Success", f"Bill saved successfully with Bill ID: {bill_id}.")
+            # Reset fields for new entry
             self.reset_fields()
+
+            # Generate the new bill_id
+            global bill_id
+            bill_id = database_management.get_next_bill_id()
+
+            # Update the Bill No. label in the GUI
+            self.label_bill_no.configure(text=f"Bill No.: {bill_id}")
+
         else:
             msgbox.showerror("Error", "Failed to save bill.")
 
@@ -176,6 +187,7 @@ class BillingFragment(ctk.CTkFrame):
         self.entry_city.delete(0, 'end')
         self.entry_mobile.delete(0, 'end')
         self.label_total_price.configure(text="Total Price: ₹0.00")
+
 
     def clear_entry(self, index):
         """Clear specific product entry fields."""

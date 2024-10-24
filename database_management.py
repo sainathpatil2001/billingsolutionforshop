@@ -44,6 +44,7 @@ def initialize_database():
             print('SQLite Connection closed.')
 
 
+#add bill to the database
 def add_bill(customer_name, customer_city, customer_mobile, total_price, items):
     """Add a new bill to the database, including associated items."""
     try:
@@ -68,14 +69,17 @@ def add_bill(customer_name, customer_city, customer_mobile, total_price, items):
 
         sqliteConnection.commit()
         print('Bill and items added successfully.')
+        return True  # Success
 
     except sqlite3.Error as error:
         print('Error while adding bill - ', error)
+        return False  # Failure
 
     finally:
         if sqliteConnection:
             sqliteConnection.close()
             print('SQLite Connection closed.')
+
 
 
 def update_bill(bill_id, customer_name, customer_city, customer_mobile, total_price, items):
