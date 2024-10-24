@@ -4,16 +4,25 @@ import search
 import settings
 import stats
 from database_management import initialize_database  # Import the function from your database module
+from PIL import Image, ImageTk  # Import required modules to handle image loading
+from customtkinter import CTkImage
+from PIL import Image
+
 
 class MainApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Billing Solution")
+        self.title("Smart Biller Solution 2024")
         self.state('zoomed')  # Fullscreen for Windows OS
 
-        # Frame to hold the top menu buttons
+        # Frame to hold the top menu buttons and logo
         self.top_menu_frame = ctk.CTkFrame(self)
         self.top_menu_frame.pack(fill="x")
+
+        # Add logo image
+        self.logo = self.load_logo("images-removebg-preview.png")  # Provide the correct path to your logo image
+        self.logo_label = ctk.CTkLabel(self.top_menu_frame, image=self.logo, text="")
+        self.logo_label.pack(side="left", padx=10, pady=10)
 
         # Create buttons for the top menu
         self.btn_billing = ctk.CTkButton(self.top_menu_frame, text="Billing", command=self.show_billing)
@@ -34,6 +43,12 @@ class MainApp(ctk.CTk):
 
         # Show the billing fragment by default
         self.show_billing()
+
+    def load_logo(self, logo_path):
+        """Load the logo image and return it in a format suitable for display."""
+        logo_img = Image.open(logo_path)
+        logo_img = logo_img.resize((80, 80), Image.Resampling.LANCZOS)  # Use LANCZOS for high-quality downsampling
+        return ImageTk.PhotoImage(logo_img)
 
     def show_billing(self):
         self.clear_frame()

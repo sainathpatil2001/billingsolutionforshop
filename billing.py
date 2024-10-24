@@ -1,18 +1,32 @@
-# main.py
-
+import os
+import subprocess
+import os
+import subprocess
+import platform
+import tkinter.messagebox as msgbox
 import customtkinter as ctk
 import tkinter as tk
 import datetime
 import tkinter.messagebox as msgbox
 import database_management
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.units import inch
+
 
 
 class BillingFragment(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent)
         global bill_id
+
         bill_id = 00
         bill_id = database_management.get_next_bill_id()
+
         # Set up frame and widgets as before
         self.scrollable_frame = ctk.CTkScrollableFrame(self)
         self.scrollable_frame.pack(fill="both", expand=True)
@@ -110,13 +124,32 @@ class BillingFragment(ctk.CTkFrame):
         items = []
         total_bill_price = 0.0
 
+        # Validate customer details
+        if not customer_name or not customer_city or not customer_mobile:
+            msgbox.showwarning("Input Error", "Please fill in all customer details.")
+            return
+
+        # Validate mobile number (numeric and 10 digits)
+        if not customer_mobile.isdigit() or len(customer_mobile) != 10:
+            msgbox.showwarning("Input Error", "Mobile number must be exactly 10 digits.")
+            return
+
         # Process each product entry
         for product_name_entry, quantity_entry, price_entry, total_label in self.entries:
             product_name = product_name_entry.get()
             quantity = quantity_entry.get()
             price_per_item = price_entry.get()
 
-            if product_name and quantity.isdigit() and price_per_item.replace('.', '', 1).isdigit():
+            # Validate quantity and price (both must be numeric)
+            if product_name:
+                if not quantity.isdigit():
+                    msgbox.showwarning("Input Error", f"Quantity for {product_name} must be a valid number.")
+                    return
+                if not price_per_item.replace('.', '', 1).isdigit():
+                    msgbox.showwarning("Input Error", f"Price for {product_name} must be a valid number.")
+                    return
+
+                # Calculate total price if valid
                 quantity = int(quantity)
                 price_per_item = float(price_per_item)
                 total_price = quantity * price_per_item
@@ -131,23 +164,24 @@ class BillingFragment(ctk.CTkFrame):
 
                 total_label.configure(text=f"₹{total_price:.2f}")
 
-        # Validate customer details
-        if not customer_name or not customer_city or not customer_mobile:
-            msgbox.showwarning("Input Error", "Please fill in all customer details.")
-            return
+        # Get the next bill ID before saving
+        bill_id = database_management.get_next_bill_id()
 
-        # Save bill to the database
+        # Save bill to the database if all validations pass
         if database_management.add_bill(customer_name, customer_city, customer_mobile, total_bill_price, items):
-            msgbox.showinfo("Success", f"Bill saved successfully.")
+            msgbox.showinfo("Success", f"Bill saved successfully with Bill ID: {bill_id}.")
 
-            # Reset fields for new entry
-            self.reset_fields()
+            # Generate PDF of the bill after saving
+            pdf_file_path = self.generate_pdf_bill(bill_id, customer_name, customer_city, customer_mobile, items,
+                                                   total_bill_price)
 
-            # Generate the new bill_id
-            global bill_id
+            # Notify that the PDF has been saved
+            msgbox.showinfo("PDF Saved", f"Bill saved as PDF at {pdf_file_path}")
+
+            self.reset_fields()  # Clear fields for a new bill
+
+            # Prepare for the next bill
             bill_id = database_management.get_next_bill_id()
-
-            # Update the Bill No. label in the GUI
             self.label_bill_no.configure(text=f"Bill No.: {bill_id}")
 
         else:
@@ -188,19 +222,17 @@ class BillingFragment(ctk.CTkFrame):
         self.entry_mobile.delete(0, 'end')
         self.label_total_price.configure(text="Total Price: ₹0.00")
 
-
     def clear_entry(self, index):
-        """Clear specific product entry fields."""
+        """Clear a specific product entry."""
         product_name_entry, quantity_entry, price_entry, total_label = self.entries[index]
         product_name_entry.delete(0, 'end')
         quantity_entry.delete(0, 'end')
         price_entry.delete(0, 'end')
         total_label.configure(text="₹0.00")
-
         self.update_total()
 
     def update_total(self, event=None):
-        """Update the total price based on the quantity and price per item."""
+        """Update the total price based on the quantity and price per item with validation."""
         total_bill_price = 0.0
 
         for product_name_entry, quantity_entry, price_entry, total_label in self.entries:
@@ -208,46 +240,127 @@ class BillingFragment(ctk.CTkFrame):
             quantity = quantity_entry.get()
             price_per_item = price_entry.get()
 
-            if product_name and quantity.isdigit() and price_per_item.replace('.', '', 1).isdigit():
-                quantity = int(quantity)
-                price_per_item = float(price_per_item)
-                total_price = quantity * price_per_item
-                total_label.configure(text=f"₹{total_price:.2f}")
-                total_bill_price += total_price
-            else:
-                total_label.configure(text="₹0.00")
+            if product_name:
+                if quantity.isdigit() and price_per_item.replace('.', '', 1).isdigit():
+                    quantity = int(quantity)
+                    price_per_item = float(price_per_item)
+                    total_price = quantity * price_per_item
+                    total_label.configure(text=f"₹{total_price:.2f}")
+                    total_bill_price += total_price
+                else:
+                    total_label.configure(text="₹0.00")
 
         self.label_total_price.configure(text=f"Total Price: ₹{total_bill_price:.2f}")
 
     def update_time(self):
-        """Update the current date and time."""
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.label_datetime.configure(text=now)
-        self.after(1000, self.update_time)  # Update every second
+        """Update the current time display."""
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.label_datetime.configure(text=current_time)
+        self.after(1000, self.update_time)  # Update time every second
 
     def scroll_up(self, event):
-        """Scroll the frame up."""
+        """Scroll up event."""
         self.scrollable_frame.yview_scroll(-1, "units")
 
     def scroll_down(self, event):
-        """Scroll the frame down."""
+        """Scroll down event."""
         self.scrollable_frame.yview_scroll(1, "units")
 
+#print the bill in inter
+    import subprocess
+    import os
+
     def handle_print_bill(self):
-        """Placeholder for print bill functionality."""
-        msgbox.showinfo("Print Bill", "Print functionality is not implemented yet.")
+        """Handle printing the bill using the default system PDF viewer."""
+        pdf_file_path = f"bill_{bill_id}.pdf"
+
+        try:
+            # Check the operating system
+            if platform.system() == "Windows":
+                os.startfile(pdf_file_path, "print")  # Open the PDF in the default viewer and print
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.run(["open", "-a", "Preview", pdf_file_path], check=True)
+            else:  # Linux or other OS
+                subprocess.run(["xdg-open", pdf_file_path], check=True)
+
+            msgbox.showinfo("Print", "Bill opened in the default PDF viewer. Please print manually.")
+        except Exception as e:
+            msgbox.showerror("Error", f"Failed to print the bill: {str(e)}")
+
+    import os
+
+    def generate_pdf_bill(self, bill_id, customer_name, customer_city, customer_mobile, items, total_bill_price):
+        """Generate the bill as a PDF."""
+        # Create a directory named 'saved_bill' if it doesn't exist
+        directory = "saved_bill"
+        if not os.path.exists(directory):
+            os.makedirs(directory)  # Create the directory
+
+        # PDF file path
+        pdf_file_path = os.path.join(directory, f"bill_{bill_id}.pdf")  # Save in 'saved_bill' folder
+
+        # Create PDF document
+        pdf = SimpleDocTemplate(pdf_file_path, pagesize=letter)
+        elements = []
+
+        # Styles
+        styles = getSampleStyleSheet()
+
+        # Add Business Information at the top
+        business_info = """
+        <b>Raj Eletricals jamner</b><br/>
+        Bajrang puara road jamaner<br/>
+        Phone: +91-7219585666<br/>
+        Email: Patilsainath517@gmail.com<br/>
+        """
+        elements.append(Paragraph(business_info, styles["Normal"]))
+        bill_id = int(database_management.get_next_bill_id()) - 1
+
+        # Add a title for the bill
+        elements.append(Paragraph(f"Bill No.: {bill_id}", styles["Title"]))
+
+        # Add customer details
+        customer_info = f"""
+        <b>Customer Information:</b><br/>
+        Name: {customer_name}<br/>
+        City: {customer_city}<br/>
+        Mobile: {customer_mobile}<br/>
+        <br/>
+        """
+        elements.append(Paragraph(customer_info, styles["Normal"]))
+
+        # Create a table with product details (Product Name, Quantity, Price, Total Price)
+        table_data = [["Product Name", "Quantity", "Price per Item (Rs.)", "Total Price (Rs.)"]]
+
+        # Add rows for each item in the bill
+        for item in items:
+            row = [item['product_name'], item['quantity'], f"Rs.{item['price_per_item']:.2f}",
+                   f"Rs.{item['total_price']:.2f}"]
+            table_data.append(row)
+
+        # Create the table with style
+        table = Table(table_data, colWidths=[2.5 * inch, 1.0 * inch, 1.5 * inch, 1.5 * inch])
+
+        # Add table styling (colors, grid lines, etc.)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ]))
+
+        elements.append(table)
+
+        # Add total price
+        elements.append(Paragraph(f"<b>Total Amount: Rs{total_bill_price:.2f}</b>", styles["Title"]))
+
+        # Build the PDF
+        pdf.build(elements)
+
+        return pdf_file_path
 
 
-# Main application
-if __name__ == "__main__":
-    # Initialize the database first
-    database_management.initialize_database()
-
-    app = ctk.CTk()
-    app.title("Billing Solution")
-    app.geometry("800x600")
-
-    billing_fragment = BillingFragment(app)
-    billing_fragment.pack(fill="both", expand=True)
-
-    app.mainloop()
