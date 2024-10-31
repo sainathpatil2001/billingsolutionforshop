@@ -9,6 +9,7 @@ from customtkinter import CTkImage
 from PIL import Image
 
 
+
 class MainApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -57,7 +58,14 @@ class MainApp(ctk.CTk):
 
     def show_search(self):
         self.clear_frame()
-        search_fragment = search.SearchFragment(self.fragment_frame)
+
+        # Placeholder update callback
+        def placeholder_update_callback(bill_id):
+            print(f"Update button clicked for Bill ID: {bill_id}")
+
+        # Initialize the SearchFragment with update_callback
+        search_fragment = search.SearchFragment(self.fragment_frame, update_callback=placeholder_update_callback)
+
         search_fragment.pack(fill="both", expand=True)
 
     def show_settings(self):

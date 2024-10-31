@@ -136,6 +136,29 @@ def delete_bill(bill_id):
             sqliteConnection.close()
             print('SQLite Connection closed.')
 
+def search_bills(query):
+    """Search bills in the database based on the query."""
+    try:
+        sqliteConnection = sqlite3.connect('billing_solution_database.db')
+        cursor = sqliteConnection.cursor()
+
+        wildcard_query = f"%{query}%"
+        cursor.execute('''
+            SELECT bill_id, customer_name, customer_mobile, customer_city
+            FROM Bills
+            WHERE customer_name LIKE ? OR customer_mobile LIKE ? OR customer_city LIKE ?
+        ''', (wildcard_query, wildcard_query, wildcard_query))
+
+        bills = cursor.fetchall()
+        return bills
+
+    except sqlite3.Error as error:
+        print('Error occurred while searching bills - ', error)
+        return []
+
+    finally:
+        if sqliteConnection:
+            sqliteConnection.close()
 
 def view_bills():
     """Retrieve and display all bills and their items."""
