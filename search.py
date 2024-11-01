@@ -1,11 +1,9 @@
 import customtkinter as ctk
 import sqlite3
 
-
 class SearchFragment(ctk.CTkFrame):
     def __init__(self, parent, update_callback):
         super().__init__(parent)
-
         self.update_callback = update_callback
 
         # Main search bar frame
@@ -18,20 +16,19 @@ class SearchFragment(ctk.CTkFrame):
 
         self.search_entry = ctk.CTkEntry(self.search_bar_frame, width=300, font=("Arial", 16))
         self.search_entry.grid(row=0, column=1, padx=(5, 10), pady=10, sticky="w")
-        self.search_entry.bind("<KeyRelease>", self.search_bills)  # Trigger search on typing
+        self.search_entry.bind("<KeyRelease>", self.search_bills)
 
         # Search button for general info
         self.search_button = ctk.CTkButton(self.search_bar_frame, text="Search", width=120, command=self.search_bills)
         self.search_button.grid(row=0, column=2, padx=5, pady=10, sticky="w")
 
-        # Bill No. specific search label
+        # Bill No. specific search label and entry
         self.bill_no_label = ctk.CTkLabel(self.search_bar_frame, text="Bill No.:", font=("Arial", 18))
         self.bill_no_label.grid(row=0, column=3, padx=(20, 5), pady=10, sticky="w")
 
-        # Bill No. specific search entry
         self.bill_no_entry = ctk.CTkEntry(self.search_bar_frame, width=200, font=("Arial", 16))
         self.bill_no_entry.grid(row=0, column=4, padx=(5, 10), pady=10, sticky="w")
-        self.bill_no_entry.bind("<KeyRelease>", self.search_by_bill_no)  # Trigger Bill No. search
+        self.bill_no_entry.bind("<KeyRelease>", self.search_by_bill_no)
 
         # Result container frame (scrollable)
         self.result_frame = ctk.CTkScrollableFrame(self, width=800, height=400)
@@ -67,7 +64,7 @@ class SearchFragment(ctk.CTkFrame):
         result = self.search_bill_by_no(bill_no)
 
         if result:
-            self.create_bill_card(result)  # Display the single result as a card
+            self.create_bill_card(result)
         else:
             no_result_label = ctk.CTkLabel(self.result_frame, text="No bill found with this Bill No.", font=("Arial", 16))
             no_result_label.pack(pady=10)
@@ -140,10 +137,5 @@ class SearchFragment(ctk.CTkFrame):
         city_label.grid(row=3, column=0, padx=10, pady=5, sticky="w")
 
         # Update button for each card
-        update_button = ctk.CTkButton(card_frame, text="Update", width=120, command=lambda: self.update_bill(bill_id))
+        update_button = ctk.CTkButton(card_frame, text="Update", width=120, command=lambda: self.update_callback(bill_id))
         update_button.grid(row=0, column=1, rowspan=4, padx=10, pady=10, sticky="e")
-
-    def update_bill(self, bill_id):
-        """Handle bill update logic (redirect to update page)."""
-        print(f"Redirecting to update bill with Bill No: {bill_id}")
-        self.update_callback(bill_id)

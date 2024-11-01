@@ -190,6 +190,49 @@ def view_bills():
             sqliteConnection.close()
             print('SQLite Connection closed.')
 
+import sqlite3
+
+def update_complete_bill(bill_id, customer_name, customer_city, customer_mobile, total_price, updated_items):
+    """Update a complete bill, including customer details and all items in the bill."""
+    try:
+        sqliteConnection = sqlite3.connect('billing_solution_database.db')
+        cursor = sqliteConnection.cursor()
+
+        # Step 1: Update the customer details in the Bills table
+        cursor.execute('''
+            UPDATE Bills
+            SET customer_name = ?, customer_city = ?, customer_mobile = ?, total_price = ?
+            WHERE bill_id = ?
+        ''', (customer_name, customer_city, customer_mobile, total_price, bill_id))
+
+        # Step 2: Delete all existing items in the Bill_Items table associated with the bill
+        cursor.execute('DELETE FROM Bill_Items WHERE bill_id = ?', (bill_id,))
+
+        # Step 3: Insert updated items into Bill_Items
+        for item in updated_items:
+            cursor.execute('''
+                INSERT INTO Bill_Items (bill_id, product_name, quantity, price_per_item, total_price)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (bill_id, item['product_name'], item['quantity'], item['price_per_item'], item['total_price']))
+
+        sqliteConnection.commit()
+        print('Complete bill updated successfully.')
+
+    except sqlite3.Error as error:
+        print('Error while updating complete bill - ', error)
+
+    finally:
+        if sqliteConnection:
+            sqliteConnection.close()
+
+# Example Usage
+updated_items = [
+    {'product_name': 'Product A', 'quantity': 2, 'price_per_item': 10.0, 'total_price': 20.0},
+    {'product_name': 'Product B', 'quantity': 3, 'price_per_item': 15.0, 'total_price': 45.0}
+]
+
+
+
 def get_next_bill_id():
     """Retrieve the next available bill ID for user input."""
     try:
