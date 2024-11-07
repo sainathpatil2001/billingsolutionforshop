@@ -3,11 +3,10 @@ import billing
 import search
 import settings
 import stats
+import update_fragment
 from database_management import initialize_database  # Import the function from your database module
 from PIL import Image, ImageTk  # Import required modules to handle image loading
 from customtkinter import CTkImage
-from PIL import Image
-
 
 
 class MainApp(ctk.CTk):
@@ -47,9 +46,13 @@ class MainApp(ctk.CTk):
 
     def load_logo(self, logo_path):
         """Load the logo image and return it in a format suitable for display."""
-        logo_img = Image.open(logo_path)
-        logo_img = logo_img.resize((80, 80), Image.Resampling.LANCZOS)  # Use LANCZOS for high-quality downsampling
-        return ImageTk.PhotoImage(logo_img)
+        try:
+            logo_img = Image.open(logo_path)
+            logo_img = logo_img.resize((80, 80), Image.Resampling.LANCZOS)  # Use LANCZOS for high-quality downsampling
+            return ImageTk.PhotoImage(logo_img)
+        except FileNotFoundError:
+            print("Logo image not found.")
+            return None
 
     def show_billing(self):
         self.clear_frame()
@@ -59,13 +62,12 @@ class MainApp(ctk.CTk):
     def show_search(self):
         self.clear_frame()
 
-        # Placeholder update callback
-        def placeholder_update_callback(bill_id):
-            print(f"Update button clicked for Bill ID: {bill_id}")
+        # Define the callback to display the update fragment with `bill_id`
+        def update_callback(bill_id):
+            self.show_update_fragment(bill_id)
 
         # Initialize the SearchFragment with update_callback
-        search_fragment = search.SearchFragment(self.fragment_frame, update_callback=placeholder_update_callback)
-
+        search_fragment = search.SearchFragment(self.fragment_frame, update_callback=update_callback)
         search_fragment.pack(fill="both", expand=True)
 
     def show_settings(self):
@@ -78,7 +80,14 @@ class MainApp(ctk.CTk):
         stats_fragment = stats.StatsFragment(self.fragment_frame)
         stats_fragment.pack(fill="both", expand=True)
 
+    def show_update_fragment(self, bill_id):
+        """Show the update fragment with the provided bill ID."""
+        self.clear_frame()
+        update_fragment_obj = update_fragment.UpdateFragment(self.fragment_frame, bill_id, self.show_search)
+        update_fragment_obj.pack(fill="both", expand=True)
+
     def clear_frame(self):
+        """Clear all widgets in the fragment frame."""
         for widget in self.fragment_frame.winfo_children():
             widget.destroy()
 
